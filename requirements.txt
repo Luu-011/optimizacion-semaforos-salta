@@ -1,0 +1,8 @@
+﻿fastapi>=0.110.0
+uvicorn>=0.28.0
+simpy>=4.1.1
+numpy>=2.0.0
+scipy>=1.13.0
+pandas>=2.2.3
+streamlit>=1.32.0
+pydantic>=2.6.4
