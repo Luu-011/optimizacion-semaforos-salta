@@ -21,9 +21,42 @@ class TrafficRequest(BaseModel):
     c: int        # Cantidad de carriles (canales)
     num_vehiculos: int = 1000
 
+# Escenarios reales preconfigurados para las arterias críticas de Salta
+ESCENARIOS_SALTA = [
+    {
+        "nombre": "Hora Pico Matutina",
+        "ubicacion": "Av. Paraguay e Intersección Circunvalación",
+        "descripcion": "Alto flujo vehicular de ingreso a la ciudad por la mañana.",
+        "parametros": {"lamda": 15.0, "mu": 6.0, "c": 3, "num_vehiculos": 1000}
+    },
+    {
+        "nombre": "Hora Pico Vespertina",
+        "ubicacion": "Av. Bicentenario y Croquis",
+        "descripcion": "Congestión por salida de actividad escolar y administrativa.",
+        "parametros": {"lamda": 12.0, "mu": 5.5, "c": 2, "num_vehiculos": 1000}
+    },
+    {
+        "nombre": "Hora Valle",
+        "ubicacion": "Av. Entre Ríos",
+        "descripcion": "Flujo moderado y estable sin restricciones severas de cola.",
+        "parametros": {"lamda": 6.0, "mu": 6.0, "c": 2, "num_vehiculos": 1000}
+    }
+]
+
 @app.get("/")
 def read_root():
-    return {"message": "Bienvenido a la API de Optimización de Tráfico en Salta (IO2)"}
+    return {"message": "Bienvenido a la API de Optimización de Tráfico en Salta (102)"}
+
+@app.get("/scenarios")
+def obtener_escenarios():
+    """
+    Retorna los escenarios viales preconfigurados para la ciudad de Salta.
+    """
+    return {
+        "status": "success",
+        "ciudad": "Salta, Argentina",
+        "escenarios": ESCENARIOS_SALTA
+    }
 
 @app.post("/optimize")
 def optimize_traffic(data: TrafficRequest):
@@ -48,3 +81,4 @@ def optimize_traffic(data: TrafficRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error interno en el servidor: {str(e)}")
+
