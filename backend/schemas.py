@@ -1,7 +1,5 @@
 from typing import List
-
 from pydantic import BaseModel, Field
-
 
 class TrafficRequest(BaseModel):
     lamda: float = Field(
@@ -24,6 +22,22 @@ class TrafficRequest(BaseModel):
         gt=0,
         description="Cantidad de vehículos para la simulación",
     )
+
+    warmup: int = Field(0,
+        ge=0,
+        description="Cantidad inicial de vehículos descartados en cada réplica",
+    )
+    replicas: int = Field(
+        1,
+        ge=1,
+        description="Cantidad de réplicas independientes",
+    )
+    seed_base: int = Field(
+        42,
+        ge=0,
+        description="Semilla base para reproducir las réplicas",
+    )
+
 
 
 class FaseWebster(BaseModel):

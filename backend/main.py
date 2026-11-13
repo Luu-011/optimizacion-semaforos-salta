@@ -37,7 +37,6 @@ def read_root():
 
 @app.get("/scenarios")
 def obtener_escenarios():
-    """Devuelve escenarios ilustrativos preconfigurados."""
     return {
         "status": "success",
         "ciudad": "Salta, Argentina",
@@ -48,7 +47,7 @@ def obtener_escenarios():
 
 @app.post("/optimize")
 def optimize_traffic(data: TrafficRequest):
-    """Calcula medidas M/M/c y ejecuta la simulación existente."""
+    """Calcula M/M/c y ejecuta la simulación con sus parámetros."""
     try:
         analitico = calcular_mmc(
             lamda=data.lamda,
@@ -61,6 +60,9 @@ def optimize_traffic(data: TrafficRequest):
             mu=data.mu,
             c=data.c,
             num_vehiculos=data.num_vehiculos,
+            warmup=data.warmup,
+            replicas=data.replicas,
+            seed_base=data.seed_base,
         )
 
         return {
@@ -70,6 +72,9 @@ def optimize_traffic(data: TrafficRequest):
                 "mu": data.mu,
                 "c": data.c,
                 "num_vehiculos": data.num_vehiculos,
+                "warmup": data.warmup,
+                "replicas": data.replicas,
+                "seed_base": data.seed_base,
             },
             "resultados_analiticos": analitico,
             "resultados_simulacion": simulado,
@@ -83,7 +88,7 @@ def optimize_traffic(data: TrafficRequest):
 def optimizar_webster(data: WebsterRequest):
     """Calcula el ciclo clásico de Webster y los verdes efectivos por fase."""
     try:
-        # Compatibilidad con Pydantic 1 y Pydantic 2.
+        # Compatible con Pydantic 1 y Pydantic 2.
         fases = [
             fase.model_dump() if hasattr(fase, "model_dump") else fase.dict()
             for fase in data.fases
