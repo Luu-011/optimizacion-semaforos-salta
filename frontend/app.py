@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from models.queue_model import calcular_mmc
+from models.queue_model import calcular_mmc, calcular_webster
 
 
 st.set_page_config(
@@ -118,8 +118,8 @@ st.write(
     f"Tasa efectiva de servicio usada: **{mu_efectiva:.2f} veh/min por carril**."
 )
 
-tab_resultados, tab_sensibilidad, tab_datos, tab_supuestos = st.tabs(
-    ["Resultados", "Sensibilidad", "Datos del aforo", "Supuestos"]
+tab_resultados, tab_sensibilidad, tab_datos, tab_supuestos, tab_webster = st.tabs(
+    ["Resultados", "Sensibilidad", "Datos del aforo", "Supuestos", "Webster"]
 )
 
 with tab_resultados:
@@ -262,3 +262,141 @@ with tab_supuestos:
         - Este cálculo no simula explícitamente las fases roja y verde del semáforo.
         """
     )
+
+    
+with tab_webster:
+    st.header("Optimización semafórica — Webster")
+
+    st.warning(
+        "Los valores iniciales son un ejemplo ilustrativo del informe, "
+        "no mediciones verificadas de una intersección real. "
+        "Reemplazalos por los aforos de cada fase cuando los tengan."
+    )
+
+    st.caption(
+        "El ciclo calculado es el Webster clásico. El verde informado es verde "
+        "efectivo; no incluye la carga de tiempos amarillos o todo-rojo."
+    )
+
+    with st.form("formulario_webster"):
+        col_fase_1, col_fase_2 = st.columns(2)
+
+        with col_fase_1:
+            st.subheader("Fase 1")
+            nombre_1 = st.text_input(
+                "Nombre de la fase 1",
+                value="Av. Bicentenario",
+            )
+            demanda_1 = st.number_input(
+                "Demanda de la fase 1 (veh/h)",
+                min_value=1.0,
+                value=1424.0,
+                step=10.0,
+            )
+            carriles_1 = st.number_input(
+                "Carriles de la fase 1",
+                min_value=1,
+                value=3,
+                step=1,
+            )
+
+        with col_fase_2:
+            st.subheader("Fase 2")
+            nombre_2 = st.text_input(
+                "Nombre de la fase 2",
+                value="Av. Entre Ríos",
+            )
+            demanda_2 = st.number_input(
+                "Demanda de la fase 2 (veh/h)",
+                min_value=1.0,
+                value=1187.0,
+                step=10.0,
+            )
+            carriles_2 = st.number_input(
+                "Carriles de la fase 2",
+                min_value=1,
+                value=2,
+                step=1,
+            )
+
+        flujo_saturacion_webster = st.number_input(
+            "Flujo de saturación (veh/h por carril)",
+            min_value=1.0,
+            value=1440.0,
+            step=60.0,
+            help="El ejemplo del informe usa 24 veh/min por carril, equivalentes a 1440 veh/h.",
+        )
+
+        tiempo_perdido = st.number_input(
+            "Tiempo perdido total por ciclo (s)",
+            min_value=0.1,
+            value=8.0,
+            step=1.0,
+        )
+
+        calcular = st.form_submit_button("Calcular ciclo de Webster")
+
+    if calcular:
+        try:
+            resultado_webster = calcular_webster(
+                fases=[
+                    {
+                        "nombre": nombre_1,
+                        "demanda_veh_h": demanda_1,
+                        "carriles": int(carriles_1),
+                    },
+                    {
+                        "nombre": nombre_2,
+                        "demanda_veh_h": demanda_2,
+                        "carriles": int(carriles_2),
+                    },
+                ],
+                flujo_saturacion_veh_h_por_carril=flujo_saturacion_webster,
+                tiempo_perdido_total_s=tiempo_perdido,
+            )
+
+            metrica_1, metrica_2, metrica_3 = st.columns(3)
+
+            metrica_1.metric(
+                "Ciclo Webster",
+                f"{resultado_webster['ciclo_webster_s']:.2f} s",
+            )
+
+            metrica_2.metric(
+                "Demora media ponderada",
+                f"{resultado_webster['demora_media_ponderada_s']:.2f} s",
+            )
+
+            metrica_3.metric(
+                "Relación crítica total (Y)",
+                f"{resultado_webster['Y']:.3f}",
+            )
+
+            tabla_fases = pd.DataFrame(
+                [
+                    {
+                        "Fase": fase["nombre"],
+                        "Demanda (veh/h)": fase["demanda_veh_h"],
+                        "Carriles": fase["carriles"],
+                        "Verde efectivo (s)": fase["verde_efectivo_s"],
+                        "Grado de saturación (x)": fase["grado_saturacion"],
+                        "Demora (s)": fase["demora_s"],
+                    }
+                    for fase in resultado_webster["fases"]
+                ]
+            )
+
+            st.subheader("Resultados por fase")
+            st.dataframe(
+                tabla_fases.round(3),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            st.info(
+                "Este cálculo no sustituye una validación de campo ni aplica "
+                "límites mínimos y máximos de ciclo del controlador semafórico."
+            )
+
+        except ValueError as error:
+            st.error(f"No se pudo calcular Webster: {error}")

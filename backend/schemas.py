@@ -1,11 +1,65 @@
+from typing import List
+
 from pydantic import BaseModel, Field
-from typing import Dict, List, Optional
+
 
 class TrafficRequest(BaseModel):
-    lamda: float = Field(..., gt=0, description="Tasa de llegada de vehículos (veh/min)")
-    mu: float = Field(..., gt=0, description="Tasa de servicio por carril (veh/min)")
-    c: int = Field(..., gt=0, description="Número de carriles o canales de salida")
-    num_vehiculos: int = Field(1000, gt=0, description="Cantidad de vehículos para la simulación")
+    lamda: float = Field(
+        ...,
+        gt=0,
+        description="Tasa de llegada de vehículos (veh/min)",
+    )
+    mu: float = Field(
+        ...,
+        gt=0,
+        description="Tasa de servicio por carril (veh/min)",
+    )
+    c: int = Field(
+        ...,
+        gt=0,
+        description="Cantidad de carriles o servidores",
+    )
+    num_vehiculos: int = Field(
+        1000,
+        gt=0,
+        description="Cantidad de vehículos para la simulación",
+    )
+
+
+class FaseWebster(BaseModel):
+    nombre: str = Field(
+        ...,
+        min_length=1,
+        description="Nombre o movimiento que representa la fase",
+    )
+    demanda_veh_h: float = Field(
+        ...,
+        gt=0,
+        description="Demanda de la fase (veh/h)",
+    )
+    carriles: int = Field(
+        ...,
+        gt=0,
+        description="Carriles de descarga de la fase",
+    )
+
+
+class WebsterRequest(BaseModel):
+    fases: List[FaseWebster] = Field(
+        ...,
+        description="Fases de la intersección; se requieren al menos dos",
+    )
+    flujo_saturacion_veh_h_por_carril: float = Field(
+        1440.0,
+        gt=0,
+        description="Flujo de saturación (veh/h por carril)",
+    )
+    tiempo_perdido_total_s: float = Field(
+        8.0,
+        gt=0,
+        description="Tiempo perdido total por ciclo (s)",
+    )
+
 
 class ScenarioConfig(BaseModel):
     nombre: str
@@ -13,24 +67,44 @@ class ScenarioConfig(BaseModel):
     descripcion: str
     parametros: TrafficRequest
 
-# Escenarios reales preconfigurados para las arterias críticas de Salta
+
+# Son escenarios ilustrativos construidos para probar el modelo.
+# No son mediciones ni ubicaciones relevadas en campo.
 ESCENARIOS_SALTA = [
     {
         "nombre": "Hora Pico Matutina",
-        "ubicacion": "Av. Paraguay e Intersección Circunvalación",
-        "descripcion": "Alto flujo vehicular de ingreso a la ciudad por la mañana.",
-        "parametros": {"lamda": 15.0, "mu": 6.0, "c": 3, "num_vehiculos": 1000}
+        "ubicacion": "Corredor Av. Paraguay (escenario ilustrativo)",
+        "descripcion": "Ejemplo de flujo de ingreso en hora pico.",
+        "parametros": {
+            "lamda": 15.0,
+            "mu": 6.0,
+            "c": 3,
+            "num_vehiculos": 1000,
+        },
     },
     {
         "nombre": "Hora Pico Vespertina",
-        "ubicacion": "Av. Bicentenario y Croquis",
-        "descripcion": "Congestión por salida de actividad escolar y administrativa.",
-        "parametros": {"lamda": 12.0, "mu": 5.5, "c": 2, "num_vehiculos": 1000}
+        "ubicacion": "Corredor Av. Bicentenario (escenario ilustrativo)",
+        "descripcion": (
+            "Ejemplo sobresaturado para probar el mensaje de inestabilidad; "
+            "no usar como recomendación operativa."
+        ),
+        "parametros": {
+            "lamda": 12.0,
+            "mu": 5.5,
+            "c": 2,
+            "num_vehiculos": 1000,
+        },
     },
     {
         "nombre": "Hora Valle",
-        "ubicacion": "Av. Entre Ríos",
-        "descripcion": "Flujo moderado y estable sin restricciones severas de cola.",
-        "parametros": {"lamda": 6.0, "mu": 6.0, "c": 2, "num_vehiculos": 1000}
-    }
+        "ubicacion": "Corredor Av. Entre Ríos (escenario ilustrativo)",
+        "descripcion": "Ejemplo de flujo moderado.",
+        "parametros": {
+            "lamda": 6.0,
+            "mu": 6.0,
+            "c": 2,
+            "num_vehiculos": 1000,
+        },
+    },
 ]
