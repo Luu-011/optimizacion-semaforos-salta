@@ -73,14 +73,6 @@ with st.sidebar:
         step=1,
     )
 
-    # Parámetros del informe: s = 24 veh/min/carril y u = g/C = 0,5.
-    flujo_saturacion = st.number_input(
-        "Flujo de saturación por carril s (veh/min)",
-        min_value=0.1,
-        value=24.0,
-        step=1.0,
-        help="Supuesto del informe; no está medido en el CSV.",
-    )
 
     proporcion_verde = st.number_input(
         "Proporción de verde u = g/C",
@@ -101,11 +93,29 @@ if df_seleccion.empty:
     st.error("No hay registros para el corredor y período seleccionados.")
     st.stop()
 
-# Convertir la demanda promedio del CSV de veh/h a veh/min.
+# Demanda media del período seleccionado: de veh/h a veh/min.
 lambda_veh_min = df_seleccion["demanda_veh_h"].mean() / 60
 
-# Convertir flujo de saturación a tasa efectiva por carril:
-# μ efectiva = s × proporción de verde.
+# El CSV guarda el tiempo de servicio promedio en segundos por vehículo.
+tiempo_servicio_promedio_s = float(
+    df_seleccion["tiempo_servicio_s"].mean()
+)
+
+if (
+    not np.isfinite(tiempo_servicio_promedio_s)
+    or tiempo_servicio_promedio_s <= 0
+):
+    st.error(
+        "No se puede calcular la tasa de servicio: "
+        "el tiempo de servicio del CSV no es válido."
+    )
+    st.stop()
+
+# s = 60 / tiempo promedio en segundos.
+# Resultado: vehículos por minuto por carril.
+flujo_saturacion = 60 / tiempo_servicio_promedio_s
+
+# μ efectiva = s × (g/C).
 mu_efectiva = flujo_saturacion * proporcion_verde
 
 st.caption(
@@ -114,9 +124,12 @@ st.caption(
 )
 
 st.write(
-    f"Demanda media calculada desde el CSV: **{lambda_veh_min:.2f} veh/min**. "
-    f"Tasa efectiva de servicio usada: **{mu_efectiva:.2f} veh/min por carril**."
+    f"Demanda media: **{lambda_veh_min:.2f} veh/min**. "
+    f"Tiempo de servicio promedio: **{tiempo_servicio_promedio_s:.2f} s/veh**. "
+    f"Flujo de saturación calculado: **{flujo_saturacion:.2f} veh/min por carril**. "
+    f"Tasa efectiva μ: **{mu_efectiva:.2f} veh/min por carril**."
 )
+
 
 tab_resultados, tab_sensibilidad, tab_datos, tab_supuestos, tab_webster = st.tabs(
     ["Resultados", "Sensibilidad", "Datos del aforo", "Supuestos", "Webster"]
