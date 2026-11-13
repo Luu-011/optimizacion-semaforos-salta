@@ -1,151 +1,264 @@
-import streamlit as st
-import pandas as pd
+from pathlib import Path
+import sys
+
 import numpy as np
+import pandas as pd
+import streamlit as st
 
-# 1. Configuración de la página
-st.set_page_config(page_title="Smart Traffic Salta", page_icon="🚦", layout="wide")
+# Permite importar los modelos del proyecto al ejecutar Streamlit.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-# 2. CSS para Modo Oscuro - Tonos Marrón Café con letras legibles
-st.markdown("""
-    <style>
-    /* Fondo general: Marrón muy oscuro (Café) */
-    .stApp {
-        background-color: #2C1E16; 
-    }
-    
-    /* Barra lateral: Marrón ligeramente más claro */
-    [data-testid="stSidebar"] {
-        background-color: #3D2B22 !important;
-    }
-    
-    /* Letras generales: Crema / Marrón pastel claro para que se lean bien */
-    h1, h2, h3, h4, h5, h6, p, span, label, div[data-testid="stMarkdownContainer"] {
-        color: #E6D5C3 !important; 
-    }
-    
-    /* Tarjetas de métricas (KPIs) */
-    div[data-testid="metric-container"] {
-        background-color: #4A352A;
-        border-radius: 10px;
-        padding: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        border-left: 6px solid #D4A373; /* Borde marrón pastel claro */
-    }
-    
-    /* Color específico para el valor de la métrica */
-    div[data-testid="stMetricValue"] {
-        color: #FFFFFF !important; 
-    }
+from models.queue_model import calcular_mmc
 
-    /* Pestañas */
-    .stTabs [data-baseweb="tab"] {
-        color: #D4A373 !important; /* Color caramelo */
-        font-size: 16px;
-        font-weight: bold;
-    }
-    .stTabs [aria-selected="true"] {
-        color: #E6D5C3 !important;
-        border-bottom-color: #D4A373 !important;
-    }
-    
-    /* Botón principal */
-    .stButton>button {
-        background-color: #D4A373 !important; /* Botón color caramelo/pastel */
-        color: #2C1E16 !important; /* Texto oscuro para contrastar */
-        border-radius: 8px;
-        border: none;
-        font-weight: bold;
-        padding: 10px 24px;
-        transition: 0.3s;
-    }
-    .stButton>button:hover {
-        background-color: #E6D5C3 !important; /* Se aclara al pasar el mouse */
-    }
-    
-    /* Cajas de info (los carteles por defecto) */
-    .stAlert {
-        background-color: #4A352A !important;
-        color: #E6D5C3 !important;
-        border: 1px solid #D4A373 !important;
-    }
-    
-    /* Estilo para el contenedor con borde (Gráficos y Tablas) */
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #3D2B22;
-        border: 1px solid #5C4336 !important;
-        border-radius: 10px;
-    }
-    </style>
-""", unsafe_allow_html=True)
 
-# 3. Encabezado principal
-st.markdown("<h1 style='text-align: center; font-size: 50px; margin-bottom: 0;'>🚦 Smart Traffic Salta</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; font-size: 18px; color: #D4A373 !important;'>Sistema Inteligente de Optimización Semafórica e Investigación Operativa</p>", unsafe_allow_html=True)
-st.divider()
+st.set_page_config(
+    page_title="Smart Traffic Salta",
+    page_icon="🚦",
+    layout="wide",
+)
 
-# 4. Barra lateral
-with st.sidebar:
-    st.markdown("<h1 style='text-align: center; font-size: 50px;'>🚥</h1>", unsafe_allow_html=True)
-    st.header("⚙️ Panel de Control")
-    
-    interseccion = st.selectbox(
-        "📍 Intersección",
-        ["Av. Bicentenario", "Av. Paraguay", "Entre Ríos"]
+st.title("🚦 Smart Traffic Salta")
+st.subheader("Análisis de colas para corredores viales")
+
+# Los aforos del proyecto son sintéticos, no mediciones oficiales.
+st.warning(
+    "Los aforos de este prototipo son sintéticos. "
+    "Los resultados son ilustrativos y no representan mediciones oficiales de tránsito."
+)
+
+# Cargar el CSV procesado.
+ruta_csv = ROOT / "data" / "processed" / "aforos_limpios.csv"
+
+if not ruta_csv.exists():
+    st.error(
+        "No se encontró data/processed/aforos_limpios.csv. "
+        "Ejecutá primero el notebook de exploración para generarlo."
     )
-    
-    st.markdown("### 🚗 Datos de Tránsito")
-    tasa_arribo = st.number_input("Tasa de Arribo - λ (veh/min)", value=20.0, step=1.0)
-    tasa_servicio = st.number_input("Capacidad por carril - μ (veh/min)", value=13.33, step=0.1)
-    num_carriles = st.slider("Número de carriles (c)", min_value=1, max_value=4, value=2)
-    
-    st.divider()
-    # Botón restaurado a "Calcular Métricas"
-    boton_calcular = st.button("📊 Calcular Métricas", use_container_width=True)
+    st.stop()
 
-# 5. Pestañas
-tab1, tab2, tab3 = st.tabs(["📊 Métricas", "📈 Análisis de Sensibilidad", "📋 Datos del Aforo"])
+df = pd.read_csv(ruta_csv, parse_dates=["timestamp"])
 
-with tab1:
-    st.subheader("Métricas Analíticas de Teoría de Colas (M/M/c)")
-    if boton_calcular:
-        with st.spinner('Calculando modelo...'):
-            st.success(f"Resultados calculados con éxito para **{interseccion}**")
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric(label="Largo de Cola (Lq)", value="3.45 veh", delta="-0.5 vs actual", delta_color="inverse")
-            with col2:
-                st.metric(label="Demora Promedio (Wq)", value="0.15 min", delta="-0.02 vs actual", delta_color="inverse")
-            with col3:
-                st.metric(label="Utilización (ρ)", value="75 %", delta="Óptimo", delta_color="normal")
-                
-            st.markdown("---")
-            st.markdown("### 💡 Recomendación Semafórica")
-            st.info("Con los parámetros actuales, se sugiere configurar un ciclo semafórico de **90 segundos**, con un verde efectivo de **45 segundos** para evitar saturación.")
-    else:
-        st.info("👈 Configurá los parámetros en la barra lateral y presioná 'Calcular Métricas'.")
+columnas_requeridas = {
+    "timestamp",
+    "interseccion",
+    "periodo",
+    "demanda_veh_h",
+    "tiempo_servicio_s",
+}
 
-with tab2:
-    st.subheader("Análisis de Sensibilidad del Modelo")
-    if boton_calcular:
-        with st.container(border=True):
-            variaciones = np.linspace(-0.3, 0.3, 20)
-            lq = [max(0, 3.45 * (1 + v)**5) for v in variaciones] 
-            df_grafico = pd.DataFrame({"Variación de Demanda (%)": variaciones * 100, "Largo de Cola (Lq)": lq})
-            
-            # Gráfico con color marrón pastel/caramelo
-            st.line_chart(df_grafico.set_index("Variación de Demanda (%)"), color="#D4A373")
-            st.caption("El gráfico demuestra cómo la cola se dispara exponencialmente a medida que la demanda se acerca a la capacidad máxima de la avenida.")
-    else:
-        st.info("Ejecutá las métricas para ver el análisis de sensibilidad.")
+if not columnas_requeridas.issubset(df.columns):
+    st.error("El CSV no contiene todas las columnas requeridas.")
+    st.stop()
 
-with tab3:
-    st.subheader("Exploración de Datos de Aforo (Salta)")
-    with st.container(border=True):
-        st.markdown("Muestra de los datos generados para el corredor vial.")
-        df_mock = pd.DataFrame({
-            "Hora": ["08:00", "08:15", "08:30", "08:45"],
-            "Demanda (veh/h)": [1250, 1300, 1280, 1150],
-            "Ocupación (%)": [85, 92, 88, 75]
-        })
-        st.dataframe(df_mock, use_container_width=True, hide_index=True)
+# Controles del escenario.
+with st.sidebar:
+    st.header("Parámetros del escenario")
+
+    intersecciones = sorted(df["interseccion"].dropna().unique())
+    interseccion = st.selectbox("Corredor", intersecciones)
+
+    periodos_disponibles = sorted(df["periodo"].dropna().unique())
+    periodo = st.selectbox(
+        "Franja horaria",
+        ["Todo el día"] + periodos_disponibles,
+    )
+
+    carriles = st.number_input(
+        "Carriles / servidores (c)",
+        min_value=1,
+        max_value=10,
+        value=3,
+        step=1,
+    )
+
+    # Parámetros del informe: s = 24 veh/min/carril y u = g/C = 0,5.
+    flujo_saturacion = st.number_input(
+        "Flujo de saturación por carril s (veh/min)",
+        min_value=0.1,
+        value=24.0,
+        step=1.0,
+        help="Supuesto del informe; no está medido en el CSV.",
+    )
+
+    proporcion_verde = st.number_input(
+        "Proporción de verde u = g/C",
+        min_value=0.01,
+        max_value=0.99,
+        value=0.50,
+        step=0.05,
+        help="Fracción del ciclo durante la cual la fase tiene verde efectivo.",
+    )
+
+# Filtrar los datos por corredor y período.
+df_seleccion = df[df["interseccion"] == interseccion].copy()
+
+if periodo != "Todo el día":
+    df_seleccion = df_seleccion[df_seleccion["periodo"] == periodo]
+
+if df_seleccion.empty:
+    st.error("No hay registros para el corredor y período seleccionados.")
+    st.stop()
+
+# Convertir la demanda promedio del CSV de veh/h a veh/min.
+lambda_veh_min = df_seleccion["demanda_veh_h"].mean() / 60
+
+# Convertir flujo de saturación a tasa efectiva por carril:
+# μ efectiva = s × proporción de verde.
+mu_efectiva = flujo_saturacion * proporcion_verde
+
+st.caption(
+    f"Escenario: **{interseccion}** · **{periodo}** · "
+    f"{len(df_seleccion)} registros del dataset"
+)
+
+st.write(
+    f"Demanda media calculada desde el CSV: **{lambda_veh_min:.2f} veh/min**. "
+    f"Tasa efectiva de servicio usada: **{mu_efectiva:.2f} veh/min por carril**."
+)
+
+tab_resultados, tab_sensibilidad, tab_datos, tab_supuestos = st.tabs(
+    ["Resultados", "Sensibilidad", "Datos del aforo", "Supuestos"]
+)
+
+with tab_resultados:
+    st.header("Medidas de desempeño M/M/c")
+
+    try:
+        resultados = calcular_mmc(
+            lamda=lambda_veh_min,
+            mu=mu_efectiva,
+            c=int(carriles),
+        )
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric(
+            "Cola media (Lq)",
+            f"{resultados['Lq']:.2f} vehículos",
+        )
+
+        col2.metric(
+            "Espera en cola (Wq)",
+            f"{resultados['Wq'] * 60:.2f} segundos",
+        )
+
+        col3.metric(
+            "Utilización (ρ)",
+            f"{resultados['rho']:.1%}",
+        )
+
+        col4.metric(
+            "Vehículos en el sistema (L)",
+            f"{resultados['Ls']:.2f}",
+        )
+
+        if "P_espera" in resultados:
+            st.metric(
+                "Probabilidad de tener que esperar",
+                f"{resultados['P_espera']:.1%}",
+            )
+
+        st.info(
+            "Estos son resultados del modelo M/M/c para los parámetros seleccionados. "
+            "La aplicación todavía no calcula automáticamente un ciclo semafórico óptimo."
+        )
+
+    except ValueError as error:
+        st.error(f"No se puede calcular un sistema estable: {error}")
+        st.info(
+            "El modelo requiere λ < c × μ. "
+            "Revisá la demanda, la tasa efectiva de servicio o el número de carriles."
+        )
+
+with tab_sensibilidad:
+    st.header("Sensibilidad ante cambios en la demanda")
+    st.caption(
+        "La curva vuelve a calcular el modelo M/M/c para cada variación de demanda."
+    )
+
+    variaciones = np.arange(-30, 41, 10)
+    filas = []
+
+    for variacion_pct in variaciones:
+        lamda_escenario = lambda_veh_min * (1 + variacion_pct / 100)
+
+        try:
+            metrica = calcular_mmc(
+                lamda=lamda_escenario,
+                mu=mu_efectiva,
+                c=int(carriles),
+            )
+
+            filas.append(
+                {
+                    "Variación de demanda (%)": variacion_pct,
+                    "Lq (vehículos)": metrica["Lq"],
+                    "Wq (segundos)": metrica["Wq"] * 60,
+                    "Utilización (ρ)": metrica["rho"],
+                    "Estado": "Estable",
+                }
+            )
+
+        except ValueError:
+            filas.append(
+                {
+                    "Variación de demanda (%)": variacion_pct,
+                    "Lq (vehículos)": np.nan,
+                    "Wq (segundos)": np.nan,
+                    "Utilización (ρ)": lamda_escenario
+                    / (int(carriles) * mu_efectiva),
+                    "Estado": "Inestable",
+                }
+            )
+
+    df_sensibilidad = pd.DataFrame(filas)
+
+    st.line_chart(
+        df_sensibilidad.set_index("Variación de demanda (%)")[
+            ["Lq (vehículos)"]
+        ]
+    )
+
+    st.dataframe(
+        df_sensibilidad.round(3),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+with tab_datos:
+    st.header("Registros del CSV")
+    st.caption(
+        "Datos de data/processed/aforos_limpios.csv. "
+        "En este proyecto fueron generados sintéticamente."
+    )
+
+    serie_demanda = (
+        df_seleccion
+        .sort_values("timestamp")
+        .set_index("timestamp")["demanda_veh_h"]
+        .rename("Demanda (veh/h)")
+    )
+
+    st.line_chart(serie_demanda)
+
+    st.dataframe(
+        df_seleccion,
+        use_container_width=True,
+        hide_index=True,
+    )
+
+with tab_supuestos:
+    st.header("Supuestos del modelo")
+    st.markdown(
+        """
+        - Las llegadas se representan mediante un proceso de Poisson.
+        - Los tiempos de servicio se consideran exponenciales.
+        - Los carriles se modelan como servidores paralelos equivalentes.
+        - La tasa efectiva por carril se calcula como `μ = s × (g/C)`.
+        - El flujo de saturación y la proporción de verde son parámetros editables.
+        - Los datos del repositorio son sintéticos y no representan aforos oficiales.
+        - Este cálculo no simula explícitamente las fases roja y verde del semáforo.
+        """
+    )
